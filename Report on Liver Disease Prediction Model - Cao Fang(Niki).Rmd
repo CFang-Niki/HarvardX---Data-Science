@@ -1,0 +1,374 @@
+---
+title: "Report on Liver Disease Prediction Model"
+author: "Cao Fang"
+date: "2019/6/13"
+output: pdf_document
+Github link: https://github.com/CFang-Niki/HarvardX---Data-Science.git
+---
+## Introduction ##
+Liver disease is a broad term that covers all the potential problems that cause the liver to fail to perform its designated functions. It can be affected by many conditions. For example, excessive amounts of acetaminophen, acetaminophen combination medications,or cirrhosis and alcohol abuse. This project is designed based on the dataset of Indian Liver Patient Records to build prediction algorithm for liver disease. 
+
+This dataset contains 416 liver patient records and 167 non liver patient records collected from North East of Andhra Pradesh, India. Descriptive statistics of the cleaned data are presented through figures and multiple plots. In order to build an accurate prediction model, different methods are used to evaluate the algorithm. The final result indicates that the Generalized Linear Model works better than other methods with the accuracy of 0.724.    
+
+## Analysis Methods ##
+## I.Prepare the Liver data set. ##
+First, download the R packages and the Indian Liver Patient Records dataset. For analysis convenience, the dataset is renamed as Liver.
+```{r Download the R packages and the Liver dataset, warning=FALSE}
+library(corrplot)
+library(caret)
+library(dplyr)
+library(dslabs)
+library(Rborist)
+library(readr)
+library(tibble)
+Liver <- read_csv("C:/Users/fragr/Documents/indian-liver-patient-records/indian_liver_patient.csv")
+```
+
+The Liver dataset contains 583 rows and 11 columns. Each row represents one record of a patient. The first 10 columns include age and gender of the patients, along with other 8 medical indicators. The "Dataset" variable implies if the patient has liver disease or not. 
+```{r Basic features of the data, warning=FALSE}
+Liver %>% as_tibble()
+```
+
+## II.Data Cleaning ##
+First, redefine the "Dataset" variable as "Disease" and convert the original values to 0(not identified liver disease) and 1(identified liver disease).
+```{r Redefine the "Dataset" column, echo=FALSE}
+colnames(Liver)[colnames(Liver)=="Dataset"] <- "Disease"
+Liver$Disease[Liver$Disease == 1] <- 0
+Liver$Disease[Liver$Disease == 2] <- 1
+Liver$Disease <- as.factor(Liver$Disease)
+```
+
+```{r Redefined "Dataset}
+str(Liver$Disease)
+```
+
+Then, detect all the NAs and remove them from the dataset. Now, there are 579 rows kept in Liver. 
+```{r Remove NAs}
+colSums(sapply(Liver, is.na))
+
+Liver <- na.omit(Liver)
+
+dim(Liver)
+```
+
+## III.Descriptive statistic of the Liver Disease dataset ##
+The following descriptive statistics show the basic features of the cleaned dataset. Meanwhile, details of variables are presented through visualization tools below.
+```{r Descriptive statistic of the Liver Disease dataset, warning=FALSE}
+Liver %>% as_tibble()
+```
+
+1.Age.
+Any patient whose age exceeded 89 is listed as being of age "90". According to the summary, the youngest patient is only 4 years old. And the mean age is 44.8, which is close to the median age of 45.  
+```{r Age}
+summary(Liver$Age)
+```
+
+```{r Age Distribution, echo=FALSE}
+Liver %>% ggplot(aes(x = "", y = Age)) +
+  geom_boxplot(color = "black", fill = "orange") +
+  ylab("Age") +
+  ggtitle("Age Distribution")
+```
+
+
+```{r Age Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(x = Gender, y = Age)) +
+  geom_boxplot(aes(fill = Gender), color = "black") +
+  ylab("Age") +
+  ggtitle("Age Distribution across Gender Group")
+
+Liver %>% ggplot(aes(x = Disease, y = Age)) +
+  geom_boxplot(aes(fill = Disease), color = "black") +
+  ylab("Age") +
+  ggtitle("Age Distribution across Disease Group")
+```
+Females and males have similar median age, while males have wider range of age than females. Compared to those who do not identified with liver disease, patients with liver disease tend to have lower median age.
+
+2.Gender
+More males than females are included in this dataset. Similar with the general age distribution trend across the disease group, males and females who do not identified liver disease have higher median age. One notable feature of female group is that the minimum and maximum age of those who have liver disease are higher than who do not, which is different than the general trend and trend in the male group.
+```{r Gender Distribution}
+summary(Liver$Gender)
+```
+
+```{r Gender Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Gender)) + 
+  geom_bar(aes(fill = Gender), color = "black") + 
+  ggtitle("Gender Counts") + 
+  theme(legend.position="none")
+
+Liver %>% ggplot(aes(Disease, Age)) + 
+  geom_boxplot(aes(fill = Gender), color = "black") +
+  ggtitle("Gender Distribution across Disease/Age Group")
+```
+
+3.Total_Bilirubin
+The Total_Bilirubin variable has minimum value of 0.4, median value of 1 and mean value of 3.31. The summary data shows a wide range of Total_Bilirubin distribution, but according to the plot, the value of max 75 is clearly one outlier. Moreover, the plot presents a major difference of the distribution between patients who have liver disease and who do not.
+```{r Total_Bilirubin Distribution}
+summary(Liver$Total_Bilirubin)
+```
+
+```{r Total_Bilirubin Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Total_Bilirubin)) + 
+  geom_point(aes(color = Gender)) +
+  ggtitle("Total_Bilirubin Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+4.Direct_Bilirubin
+The Direct_Bilirubin variable distributed unevenly across the scale. It has minimum value of 0.1, median value of 0.3, third quarter value of 1.3, however the maximum value is up to 19.7. And the Direct_Bilirubin is generally low among patients who identified with liver disease. 
+```{r Direct_Bilirubin Distribution}
+summary(Liver$Direct_Bilirubin)
+```
+
+```{r Direct_Bilirubin Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Direct_Bilirubin)) + 
+  geom_point(aes(color = Gender)) +
+  ggtitle("Direct_Bilirubin Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+5.Alkaline_Phosphotase
+The range for the Alkaline Phosphotase variable is also wide, with a minimum value of 63, median value 208 and maximum value of 2110. The distribution of Alkaline_Phosphotase is skewed, especially among patients who do not have liver disease.
+```{r Alkaline_Phosphotase Distribution}
+summary(Liver$Alkaline_Phosphotase)
+```
+
+```{r Alkaline_Phosphotase Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Alkaline_Phosphotase)) + 
+  geom_point(aes(color = Gender)) +
+  ggtitle("Alkaline_Phosphotase Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+6.Alamine_Aminotransferase
+The wide range of the Alamine_Aminotransferase variable can be attributed to males who do not have liver disease. Values above 1000 are all from this subgroup. Significant difference of distribution is showed in among males across the disease groups, but not much among females.
+```{r Alamine_Aminotransferase Distribution}
+summary(Liver$Alamine_Aminotransferase)
+```
+
+```{r Alamine_Aminotransferase Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Alamine_Aminotransferase)) + 
+  geom_point(aes(color = Gender)) +
+  ggtitle("Alamine_Aminotransferase Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+7.Aspartate_Aminotransferase
+The Aspartate_Aminotransferase variable has minimum value of 10, median value of 42, but mean value of 110, which is more than twice of the median. The plot shows two outliers that contribute to it, as well as to the wide range of distribution. 
+```{r Aspartate_Aminotransferase Distribution}
+summary(Liver$Aspartate_Aminotransferase)
+```
+
+```{r Aspartate_Aminotransferase Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Aspartate_Aminotransferase)) + 
+  geom_point(aes(color = Gender)) +
+  ggtitle("Aspartate_Aminotransferase Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+8.Total_Protiens
+Box plot is used here due to the close distribution of Total_Protiens. The Total_Protiens variable has minimum value of 2.7, maximum value of 9.6 and mean value of 6.48. Among the four subgroups, males who do not have liver disease have the wildest range of Total_Protiens distribution.
+```{r Total_Protiens Distribution}
+summary(Liver$Total_Protiens)
+```
+
+```{r Total_Protiens Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Total_Protiens)) + 
+  geom_boxplot(aes(fill = Gender), color = "black") +
+  ggtitle("Total_Protiens Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+9.Albumin
+The Albumin variable has minimum value of 0.9, maximum value of 5.5 and mean value of 3.14. The distributions do not present significant differences among the four subgroups.
+```{r Albumin Distribution}
+summary(Liver$Albumin)
+```
+
+```{r Albumin Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Albumin)) + 
+  geom_boxplot(aes(fill = Gender), color = "black") +
+  ggtitle("Albumin Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+10.Albumin_and_Globulin_Ratio
+The Albumin_and_Globulin_Ratio variable has minimum value of 0.3, maximum value of 2.8 and mean value of 0.947. Similar distribution features are presented across gender and disease groups.
+```{r Albumin_and_Globulin_Ratio Distributio}
+summary(Liver$Albumin_and_Globulin_Ratio)
+```
+
+```{r Albumin_and_Globulin_Ratio Distribution across Groups, echo=FALSE}
+Liver %>% ggplot(aes(Age, Albumin_and_Globulin_Ratio)) + 
+  geom_boxplot(aes(fill = Gender), color = "black") +
+  ggtitle("Albumin_and_Globulin_Ratio Distribution across Disease/Gender Group") +
+  facet_grid(Gender~Disease)
+```
+
+## V.Building the prediction model ##
+1.Remove the highly correlated predictors
+Before building the prediction model, highly correlated variables need to be removed to ensure all the predictors in the model are independent. Correlated predictors cannot contribute to the prediction model. The plot below shows the correlation between variables except two non-numeric columns -- "Gender" and "Disease".
+```{r Correlation between variables, echo=FALSE}
+non_numeric_cols <- c('Gender', 'Disease')
+correlations <- cor(Liver[, !(names(Liver) %in% non_numeric_cols)])
+correlations
+
+corrplot(correlations, tl.cex = 0.6, tl.col = "blue")
+```
+
+Setting the cutoff at 0.5, three variables are detected to be highly correlated. After removing them, only 8 variables are kept in the dataset.
+```{r Remove the highly correlated predictors}
+high_Cor <- findCorrelation(correlations, cutoff = 0.5, names=TRUE)
+high_Cor
+
+Liver <- Liver[, !(names(Liver) %in% high_Cor)]
+
+dim(Liver)
+```
+ 
+2.Create train set and test set
+To ensure the consistence of the results, the seed will be set at 1 throughout the project. The train set and test set are created through createDataPartition function. The train set account for 50% of the whole dataset. The algorithm will be evaluated in the test set.
+```{r Create train set and test set, warning=FALSE}
+set.seed(1, sample.kind = "Rounding")
+test_index <- createDataPartition(Liver$Disease, times = 1, p = 0.5, list = FALSE)
+train_set <- Liver[-test_index,]
+test_set <- Liver[test_index,]
+```
+
+3.Model 1 - Generalized Linear Model
+In the Generalized Linear Model, logistic regression is applied for prediction through "glm" function. And the model is specified with the "family" argument as "binomial". According to the confusion matrix, the Generalized Linear Model has the accuracy of 0.724.
+```{r Model 1 - Generalized Linear Model, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.glm <- train(Disease ~ ., data = train_set, method = "glm", family = "binomial")
+y_hat_glm <- predict(fit.glm, test_set)
+confusionMatrix(y_hat_glm, test_set$Disease)
+
+glm_accuracy <- confusionMatrix(y_hat_glm, test_set$Disease)$overall["Accuracy"]
+glm_sensitivity <- sensitivity(y_hat_glm, test_set$Disease)
+glm_specificity <- specificity(y_hat_glm, test_set$Disease)
+```
+
+For the purpose of comparison with other models, values of accuracy, sensitivity and specificity are stored independently.
+
+4.Model 2 - KNN Model
+Compared to the previous Generalized Linear Model, k-nearest neighbors algorithm comes up with a much lower accuracy of 0.648 when k is equal to 5.
+```{r KNN Model, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.knn <- train(Disease ~ ., data = train_set, method = "knn", tuneGrid = data.frame(k = 5))
+y_hat_knn <- predict(fit.knn, test_set, type = "raw")
+confusionMatrix(y_hat_knn, test_set$Disease)
+```
+
+However, this model can be improved through parameter k with the following process.  
+```{r Tuning Parameter k, warning=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.knn_k <- train(Disease ~ ., data = train_set, method = "knn", tuneGrid = data.frame(k = seq(1,100,1)))
+fit.knn_k$bestTune
+```
+
+When setting the k to 62, the KNN model accuracy is improved to 0.714
+```{r Best k, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.knn_bk <- train(Disease ~ ., data = train_set, method = "knn", tuneGrid = data.frame(k = 62))
+y_hat_knn_bk <- predict(fit.knn_bk, test_set, type = "raw")
+confusionMatrix(y_hat_knn_bk, test_set$Disease)
+
+knn_accuracy <- confusionMatrix(y_hat_knn_bk, test_set$Disease)$overall["Accuracy"]
+knn_sensitivity <- sensitivity(y_hat_knn_bk, test_set$Disease)
+knn_specificity <- specificity(y_hat_knn_bk, test_set$Disease)
+```
+
+5.Model 3 - Linear Discriminant Analysis Model
+Linear Discriminant Analysis Model works well in accuracy and sensitivity. However, the specificity is only 0.07, which is much lower than the previous models.
+```{r Linear Discriminant Analysis Model, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.lda <- train(Disease ~ ., data = train_set, method = "lda")
+y_hat_lda <- predict(fit.lda, test_set)
+confusionMatrix(y_hat_lda, test_set$Disease)
+
+lda_accuracy <- confusionMatrix(y_hat_lda, test_set$Disease)$overall["Accuracy"]
+lda_sensitivity <- sensitivity(y_hat_lda, test_set$Disease)
+lda_specificity <- specificity(y_hat_lda, test_set$Disease)
+```
+
+6.Model 4 -  Random Forest Model 1
+In the first Random Forest Model, "rf" function is used for prediction. The model set the nodesize to 50, maxnodes to 25 and ntree to 1000. The accuracy of 0.676 is not very good. 
+```{r Random Forest Model 1, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.rf <- train(Disease ~ ., data = train_set, method = "rf", tuneGrid = expand.grid(.mtry = 5), 
+                trControl = trainControl(method = "cv", number = 10, search = "grid"),importance = TRUE, 
+                nodesize = 50, maxnodes = 25, ntree = 1000, prox = TRUE)
+y_hat_rf <- predict(fit.rf, test_set)
+confusionMatrix(y_hat_rf, test_set$Disease)
+```
+
+The mtry values can be tuned to improve the performance of the model.
+```{r Tunning Parameter mtry, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+tuneGrid <- expand.grid(.mtry = seq(1,10,1))
+fit.rf_m <- train(Disease ~ ., data = train_set, method = "rf", tuneGrid = tuneGrid, 
+                trControl = trainControl(method = "cv", number = 10, search = "grid"),importance = TRUE, nodesize = 50, 
+                maxnodes = 25, ntree = 1000, prox = TRUE)
+fit.rf_m
+```
+
+With the best mtry value of 2, the accuracy is improved to 0.7.
+```{r Best mtry, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.rf_bm <- train(Disease ~ ., data = train_set, method = "rf", tuneGrid = expand.grid(.mtry = 2), 
+                trControl = trainControl(method = "cv", number = 10, search = "grid"),importance = TRUE, nodesize = 50, 
+                maxnodes = 25, ntree = 1000, prox = TRUE)
+y_hat_rf_bm <- predict(fit.rf_bm, test_set)
+confusionMatrix(y_hat_rf_bm, test_set$Disease)
+
+rf_accuracy <- confusionMatrix(y_hat_rf_bm, test_set$Disease)$overall["Accuracy"]
+rf_sensitivity <- sensitivity(y_hat_rf_bm, test_set$Disease)
+rf_specificity <- specificity(y_hat_rf_bm, test_set$Disease)
+```
+
+7.Model 5 -  Random Forest Model 2
+Different with the first Random Forest Model, this model uses "Rborist" function to improve the prediction by making the estimates smoother. Before tuning the parameter, the accuracy is only 0.666.
+```{r Random Forest Model 2, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.rb <- train(Disease ~ ., method = "Rborist", tuneGrid = data.frame(predFixed = 2, minNode = 10), data = train_set)
+y_hat_rb <- predict(fit.rb, test_set)
+confusionMatrix(y_hat_rb, test_set$Disease)
+```
+
+The following process detects the most fitted predFixed and minNode to maximize the results. 
+```{r Tunning Parameter predFixed & minNode, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+predFixed <- seq(1,10,1)
+minNode <- seq(5, 300, 10)
+fit.rb_pm <- train(Disease ~ ., method = "Rborist", tuneGrid = data.frame(predFixed = predFixed, minNode = minNode), data = train_set)
+fit.rb_pm
+```
+ 
+With the prefFixed equal to 1 and minNode equal to 5, the accuracy of Random Forest Model 2 is improved a lot to 0.714.
+```{r Best predFixed & minNode, warning=FALSE, echo=FALSE}
+set.seed(1, sample.kind = "Rounding")
+fit.rb_bpm <- train(Disease ~ ., method = "Rborist", tuneGrid = data.frame(predFixed = 1, minNode = 5), data = train_set)
+y_hat_rb_bpm <- predict(fit.rb_bpm, test_set)
+confusionMatrix(y_hat_rb_bpm, test_set$Disease)
+
+rb_accuracy <- confusionMatrix(y_hat_rb_bpm, test_set$Disease)$overall["Accuracy"]
+rb_sensitivity <- sensitivity(y_hat_rb_bpm, test_set$Disease)
+rb_specificity <- specificity(y_hat_rb_bpm, test_set$Disease)
+```
+
+## Results ##
+The results of all five models are showed below.
+```{r Results, warning=FALSE, echo=FALSE}
+Results <- data.frame(Method = "Generalized Linear Model", Accuracy = glm_accuracy, Sensitivity = glm_sensitivity, specificity = glm_specificity) %>%
+  bind_rows(data_frame(Method = "KNN Model", Accuracy = knn_accuracy, Sensitivity = knn_sensitivity, specificity = knn_specificity)) %>%
+  bind_rows(data_frame(Method = "Linear Discriminant Analysis Model", Accuracy = lda_accuracy, Sensitivity = lda_sensitivity, specificity = lda_specificity)) %>%
+  bind_rows(data_frame(Method = "Random Forest Model 1", Accuracy = rf_accuracy, Sensitivity = rf_sensitivity, specificity = rf_specificity)) %>% 
+  bind_rows(data_frame(Method = "Random Forest Model 2", Accuracy = rb_accuracy, Sensitivity = rb_sensitivity, specificity = rb_specificity))
+
+print(Results)
+```
+
+After tuning the parameter, all the models achieve an accuracy above 0.7. However, it is notable that the Linear Discriminant Analysis Model and Random Forest Model 2 have extremely low specificity, despite their high sensitivity. The model with best accuracy is the Generalized Linear Model with 0.724.
+
+## Conclusion ##
+Generalized Linear Model with highest accuracy works best compared to other models. However, in this particular medical context, accuracy may not be the only indicator. Specificity means the accurate diagnosis when the patient is actually affected with liver disease. Thus, although the Random Forest Model 2 has the same accuracy with KNN model, and even higher sensitivity, it cannot be applied in practice due to its high rate of misdiagnosis of true patients. With this consideration, it seems that the KNN Model works better than Generalized Linear Model, since the former specificity is 21% higher than the latter one.
